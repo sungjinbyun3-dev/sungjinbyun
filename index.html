@@ -7,6 +7,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --card-border: #e2e8f0;
+            --text-main: #0f172a;
+            --text-sub: #64748b;
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --success: #16a34a;
+            --danger: #dc2626;
+            --accent-bg: #f1f5f9;
+        }
+
+        [data-theme="dark"] {
             --bg-color: #0f172a;
             --card-bg: #1e293b;
             --card-border: rgba(255, 255, 255, 0.08);
@@ -16,14 +29,7 @@
             --primary-hover: #4f46e5;
             --success: #22c55e;
             --danger: #ef4444;
-        }
-
-        [data-theme="light"] {
-            --bg-color: #f8fafc;
-            --card-bg: #ffffff;
-            --card-border: rgba(0, 0, 0, 0.08);
-            --text-main: #0f172a;
-            --text-sub: #64748b;
+            --accent-bg: #0f172a;
         }
 
         * {
@@ -49,7 +55,7 @@
             max-width: 800px;
             display: flex;
             flex-direction: column;
-            gap: 24px;
+            gap: 20px;
         }
 
         header {
@@ -60,7 +66,7 @@
             border: 1px solid var(--card-border);
             padding: 20px 24px;
             border-radius: 16px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
         }
 
         h1 {
@@ -79,8 +85,8 @@
 
         .btn-primary { background: var(--primary); color: white; }
         .btn-primary:hover { background: var(--primary-hover); }
-        .btn-secondary { background: rgba(150,150,150,0.15); color: var(--text-main); }
-        .btn-secondary:hover { background: rgba(150,150,150,0.25); }
+        .btn-secondary { background: var(--accent-bg); color: var(--text-main); border: 1px solid var(--card-border); }
+        .btn-secondary:hover { background: var(--card-border); }
 
         .tab-menu {
             display: flex;
@@ -110,7 +116,7 @@
             border: 1px solid var(--card-border);
             border-radius: 16px;
             padding: 28px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
         }
 
         .section { display: none; }
@@ -128,7 +134,7 @@
             margin-bottom: 6px;
         }
 
-        textarea, select {
+        textarea, select, input[type="text"] {
             width: 100%;
             padding: 12px 14px;
             border-radius: 10px;
@@ -137,10 +143,36 @@
             color: var(--text-main);
             font-size: 14px;
             outline: none;
-            resize: vertical;
         }
 
-        textarea { height: 90px; }
+        textarea { height: 90px; resize: vertical; }
+
+        /* 카테고리 태그 모음 */
+        .category-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .tag {
+            padding: 6px 12px;
+            background: var(--accent-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            font-size: 13px;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .tag .del-tag {
+            cursor: pointer;
+            color: var(--text-sub);
+            font-weight: bold;
+        }
+        .tag .del-tag:hover { color: var(--danger); }
 
         .item-list {
             display: flex;
@@ -162,6 +194,16 @@
             gap: 12px;
         }
 
+        .item-category {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--primary);
+            background: rgba(79, 70, 229, 0.1);
+            padding: 3px 8px;
+            border-radius: 6px;
+            white-space: nowrap;
+        }
+
         .item-text {
             font-size: 14px;
             line-height: 1.4;
@@ -174,8 +216,8 @@
             font-weight: 700;
             font-size: 12px;
         }
-        .badge.O { background: rgba(34, 197, 94, 0.15); color: var(--success); }
-        .badge.X { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+        .badge.O { background: rgba(22, 163, 74, 0.15); color: var(--success); }
+        .badge.X { background: rgba(220, 38, 38, 0.15); color: var(--danger); }
 
         .delete-btn {
             background: none;
@@ -225,8 +267,8 @@
             color: var(--text-main);
         }
 
-        .ox-btn.btn-o:hover { border-color: var(--success); color: var(--success); background: rgba(34,197,94,0.05); }
-        .ox-btn.btn-x:hover { border-color: var(--danger); color: var(--danger); background: rgba(239,68,68,0.05); }
+        .ox-btn.btn-o:hover { border-color: var(--success); color: var(--success); background: rgba(22, 163, 74, 0.05); }
+        .ox-btn.btn-x:hover { border-color: var(--danger); color: var(--danger); background: rgba(220, 38, 38, 0.05); }
 
         .quiz-result-msg {
             font-size: 18px;
@@ -244,24 +286,39 @@
         }
     </style>
 </head>
-<body data-theme="dark">
+<body data-theme="light">
 
     <div class="container">
         <header>
             <h1>✍️ 수험 선지 O/X 트레이너</h1>
             <div>
-                <button class="btn btn-secondary" onclick="toggleTheme()">🌓 테마</button>
+                <button class="btn btn-secondary" onclick="toggleTheme()">🌓 다크/라이트</button>
             </div>
         </header>
 
         <div class="tab-menu">
-            <button class="tab-btn active" onclick="switchTab('input')">1. 선지 등록</button>
-            <button class="tab-btn" onclick="switchTab('quiz')">2. O/X 풀기 (<span id="quiz-count">0</span>)</button>
+            <button class="tab-btn active" onclick="switchTab('input', event)">1. 선지 및 카테고리 관리</button>
+            <button class="tab-btn" onclick="switchTab('quiz', event)">2. O/X 풀기 (<span id="quiz-count">0</span>)</button>
         </div>
 
-        <!-- 선지 등록 섹션 -->
+        <!-- 선지 및 카테고리 관리 섹션 -->
         <div class="section active card" id="section-input">
-            <h2 style="font-size:16px; margin-bottom:16px;">공부한 선지 및 지문 추가하기</h2>
+            <!-- 카테고리 추가 -->
+            <div style="margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px dashed var(--card-border);">
+                <h2 style="font-size:15px; margin-bottom:12px;">📁 카테고리 관리</h2>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="new-category-input" placeholder="새 카테고리명 (예: 세법, 재무회계)">
+                    <button class="btn btn-primary" style="white-space:nowrap;" onclick="addCategory()">카테고리 생성</button>
+                </div>
+                <div class="category-tags" id="category-tags-list"></div>
+            </div>
+
+            <!-- 선지 추가 -->
+            <h2 style="font-size:15px; margin-bottom:16px;">✏️ 선지 추가하기</h2>
+            <div class="input-group">
+                <label>카테고리 선택</label>
+                <select id="input-category"></select>
+            </div>
             <div class="input-group">
                 <label>선지 내용 (변형 없이 그대로 입력)</label>
                 <textarea id="input-text" placeholder="예: 자본잠식 상태인 법인의 채무면제이익은 이월결손금 보전에 충당할 수 있다."></textarea>
@@ -283,152 +340,22 @@
 
         <!-- O/X 풀기 섹션 -->
         <div class="section card" id="section-quiz">
+            <!-- 풀 카테고리 선택 드롭다운 -->
+            <div class="input-group" style="margin-bottom: 20px;">
+                <label>풀어볼 카테고리 선택</label>
+                <select id="quiz-category-select" onchange="initQuiz()">
+                    <option value="ALL">전체 카테고리 문제 풀기</option>
+                </select>
+            </div>
+
             <div id="quiz-active-area">
                 <div class="quiz-progress" id="quiz-progress">문제 1 / 5</div>
-                <div class="quiz-statement" id="quiz-statement">등록된 선지가 없습니다. 선지를 먼저 추가해주세요.</div>
+                <div class="quiz-statement" id="quiz-statement">등록된 선지가 없습니다.</div>
                 <div class="quiz-buttons" id="quiz-action-btns">
                     <button class="ox-btn btn-o" onclick="answerQuiz('O')">O</button>
                     <button class="ox-btn btn-x" onclick="answerQuiz('X')">X</button>
                 </div>
                 <div class="quiz-result-msg" id="quiz-result-msg"></div>
             </div>
-            <div id="quiz-end-area" style="display:none; text-align:center; padding: 30px 0;">
-                <h2 style="font-size:22px; margin-bottom:10px;">🎉 모든 문제를 풀었습니다!</h2>
-                <p id="quiz-score-summary" style="color:var(--text-sub); margin-bottom:20px;"></p>
-                <button class="btn btn-primary" onclick="restartQuiz()">처음부터 다시 풀기</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        let statements = JSON.parse(localStorage.getItem('cpa_ox_items') || '[]');
-        let currentQuizIndex = 0;
-        let correctCount = 0;
-        let shuffledList = [];
-
-        function switchTab(tabName) {
-            document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-
-            if (tabName === 'input') {
-                document.getElementById('section-input').classList.add('active');
-                event.target.classList.add('active');
-                renderList();
-            } else {
-                document.getElementById('section-quiz').classList.add('active');
-                event.target.classList.add('active');
-                initQuiz();
-            }
-        }
-
-        function addStatement() {
-            const text = document.getElementById('input-text').value.trim();
-            const answer = document.getElementById('input-answer').value;
-
-            if (!text) {
-                alert('선지 내용을 입력해주세요.');
-                return;
-            }
-
-            statements.push({ id: Date.now(), text: text, answer: answer });
-            localStorage.setItem('cpa_ox_items', JSON.stringify(statements));
-
-            document.getElementById('input-text').value = '';
-            renderList();
-            updateCount();
-            alert('선지가 등록되었습니다!');
-        }
-
-        function deleteStatement(id) {
-            statements = statements.filter(item => item.id !== id);
-            localStorage.setItem('cpa_ox_items', JSON.stringify(statements));
-            renderList();
-            updateCount();
-        }
-
-        function renderList() {
-            const listEl = document.getElementById('statement-list');
-            if (statements.length === 0) {
-                listEl.innerHTML = `<div class="empty-notice">등록된 선지가 없습니다.</div>`;
-                return;
-            }
-
-            listEl.innerHTML = statements.map(item => `
-                <div class="item-row">
-                    <div class="item-text">${item.text}</div>
-                    <span class="badge ${item.answer}">${item.answer}</span>
-                    <button class="delete-btn" onclick="deleteStatement(${item.id})">삭제</button>
-                </div>
-            `).join('');
-        }
-
-        function updateCount() {
-            document.getElementById('quiz-count').innerText = statements.length;
-        }
-
-        function initQuiz() {
-            updateCount();
-            if (statements.length === 0) {
-                document.getElementById('quiz-active-area').style.display = 'none';
-                document.getElementById('quiz-end-area').style.display = 'block';
-                document.getElementById('quiz-score-summary').innerText = '등록된 선지가 없습니다. 선지 탭에서 문제를 먼저 등록해주세요.';
-                return;
-            }
-
-            document.getElementById('quiz-active-area').style.display = 'block';
-            document.getElementById('quiz-end-area').style.display = 'none';
-
-            shuffledList = [...statements].sort(() => Math.random() - 0.5);
-            currentQuizIndex = 0;
-            correctCount = 0;
-            loadQuizCard();
-        }
-
-        function loadQuizCard() {
-            if (currentQuizIndex >= shuffledList.length) {
-                document.getElementById('quiz-active-area').style.display = 'none';
-                document.getElementById('quiz-end-area').style.display = 'block';
-                document.getElementById('quiz-score-summary').innerText = `총 ${shuffledList.length}문제 중 ${correctCount}문제 정답 (${Math.round((correctCount/shuffledList.length)*100)}점)`;
-                return;
-            }
-
-            const current = shuffledList[currentQuizIndex];
-            document.getElementById('quiz-progress').innerText = `문제 ${currentQuizIndex + 1} / ${shuffledList.length}`;
-            document.getElementById('quiz-statement').innerText = current.text;
-            document.getElementById('quiz-result-msg').innerText = '';
-            document.getElementById('quiz-action-btns').style.display = 'flex';
-        }
-
-        function answerQuiz(selected) {
-            const current = shuffledList[currentQuizIndex];
-            const msgEl = document.getElementById('quiz-result-msg');
-            document.getElementById('quiz-action-btns').style.display = 'none';
-
-            if (selected === current.answer) {
-                correctCount++;
-                msgEl.innerHTML = `<span style="color:var(--success)">⭕ 정답입니다!</span>`;
-            } else {
-                msgEl.innerHTML = `<span style="color:var(--danger)">❌ 틀렸습니다! (정답: ${current.answer})</span>`;
-            }
-
-            currentQuizIndex++;
-            setTimeout(loadQuizCard, 1200);
-        }
-
-        function restartQuiz() {
-            initQuiz();
-        }
-
-        function toggleTheme() {
-            const body = document.body;
-            const current = body.getAttribute('data-theme');
-            body.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
-        }
-
-        window.onload = function() {
-            renderList();
-            updateCount();
-        };
-    </script>
-</body>
-</html>
+            
+            <div id="quiz-end-area" style="display:none; text
