@@ -1,226 +1,439 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
-interface QuestionItem {
+// 선지 데이터 모델
+interface QuizItem {
   id: string;
   subject: string;
-  content: string;
-  explanation: string;
+  topic?: string;          // 세부 단원/세부 주제
+  content: string;         // 모르는 선지 본문
+  explanation: string;     // 해설 및 오답 포인트
+  reviewCount: number;     // 복습 횟수 (회독)
+  difficulty: '상' | '중' | '하';
+  createdAt: string;
 }
 
-export default function Home() {
-  const [items, setItems] = useState<QuestionItem[]>([]);
-  const [subject, setSubject] = useState('국어');
+const SUBJECT_OPTIONS = [
+  '전체',
+  '회계학',
+  '세법',
+  '경제학',
+  '상법/민법',
+  '국어/영어',
+  '기타'
+];
+
+export default function ExamQuizApp() {
+  const [items, setItems] = useState<QuizItem[]>([]);
+  const [mode, setMode] = useState<'list' | 'quiz'>('list');
+
+  // 입력 폼 상태
+  const [subject, setSubject] = useState('회계학');
+  const [topic, setTopic] = useState('');
   const [content, setContent] = useState('');
   const [explanation, setExplanation] = useState('');
-  
-  // 탭 상태: 'list' (목록 및 등록) 또는 'quiz' (퀴즈 풀기)
-  const [mode, setMode] = useState<'list' | 'quiz'>('list');
-  
+  const [difficulty, setDifficulty] = useState<'상' | '중' | '하'>('중');
+
+  // 필터 상태
+  const [filterSubject, setFilterSubject] = useState('전체');
+  const [searchQuery, setSearchQuery] = useState('');
+
   // 퀴즈 상태
+  const [quizList, setQuizList] = useState<QuizItem[]>([]);
   const [quizIndex, setQuizIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
-  const [score, setScore] = useState(0);
 
-  // 로컬 스토리지에서 데이터 불러오기
+  // 1. 로컬 스토리지 불러오기
   useEffect(() => {
-    const saved = localStorage.getItem('study_wrong_items');
+    const saved = localStorage.getItem('v2_exam_quiz_items');
     if (saved) {
       try {
         setItems(JSON.parse(saved));
       } catch (e) {
-        console.error(e);
+        console.error('데이터 로드 실패:', e);
       }
     }
   }, []);
 
-  // 데이터 저장 함수
-  const saveItems = (newItems: QuestionItem[]) => {
+  // 데이터 저장 헬퍼
+  const saveItems = (newItems: QuizItem[]) => {
     setItems(newItems);
-    localStorage.setItem('study_wrong_items', JSON.stringify(newItems));
+    localStorage.setItem('v2_exam_quiz_items', JSON.stringify(newItems));
   };
 
-  // 선지 추가
+  // 2. 새 선지 추가
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) return;
 
-    const newItem: QuestionItem = {
+    const newItem: QuizItem = {
       id: Date.now().toString(),
       subject,
-      content,
-      explanation,
+      topic: topic.trim(),
+      content: content.trim(),
+      explanation: explanation.trim(),
+      reviewCount: 0,
+      difficulty,
+      createdAt: new Date().toLocaleDateString('ko-KR'),
     };
 
     saveItems([newItem, ...items]);
     setContent('');
     setExplanation('');
+    setTopic('');
   };
 
-  // 선지 삭제
+  // 3. 선지 삭제
   const handleDelete = (id: string) => {
-    const newItems = items.filter((item) => item.id !== id);
-    saveItems(newItems);
+    if (confirm('이 선지를 오답노트에서 삭제하시겠습니까?')) {
+      saveItems(items.filter((item) => item.id !== id));
+    }
+  };
+
+  // 4. 회독 수 증가
+  const handleIncrementReview = (id: string) => {
+    const updated = items.map((item) =>
+      item.id === id ? { ...item, reviewCount: item.reviewCount + 1 } : item
+    );
+    saveItems(updated);
+  };
+
+  // 5. 필터링된 선지 목록 (검색 및 과목 필터)
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      const matchSubject = filterSubject === '전체' || item.subject === filterSubject;
+      const matchQuery =
+        item.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.explanation.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (item.topic && item.topic.toLowerCase().includes(searchQuery.toLowerCase()));
+      return matchSubject && matchQuery;
+    });
+  }, [items, filterSubject, searchQuery]);
+
+  // 6. 퀴즈 시작 (무작위 셔플)
+  const startQuiz = () => {
+    if (filteredItems.length === 0) {
+      alert('퀴즈를 진행할 선지가 없습니다. 필터를 변경하거나 선지를 추가하세요.');
+      return;
+    }
+    // 배열 셔플
+    const shuffled = [...filteredItems].sort(() => Math.random() - 0.5);
+    setQuizList(shuffled);
+    setQuizIndex(0);
+    setShowAnswer(false);
+    setMode('quiz');
+  };
+
+  // 7. 데이터 내보내기/가져오기 (백업 기능)
+  const exportData = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(items));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `exam_notes_backup_${new Date().toISOString().slice(0,10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  const importData = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileReader = new FileReader();
+    if (e.target.files && e.target.files[0]) {
+      fileReader.readAsText(e.target.files[0], "UTF-8");
+      fileReader.onload = (event) => {
+        try {
+          const parsed = JSON.parse(event.target?.result as string);
+          if (Array.isArray(parsed)) {
+            saveItems(parsed);
+            alert('데이터를 성공적으로 불러왔습니다!');
+          }
+        } catch (err) {
+          alert('올바르지 않은 JSON 파일입니다.');
+        }
+      };
+    }
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 text-gray-800 p-4 sm:p-8">
-      <div className="max-w-xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+    <main className="min-h-screen bg-slate-50 text-slate-800 p-4 sm:p-8">
+      <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5 sm:p-8">
         
-        {/* 상단 타이틀 및 모드 전환 탭 */}
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-xl font-bold text-gray-900">📝 수험생 오답/선지 퀴즈</h1>
+        {/* 상단 타이틀 및 모드 전환 */}
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6 pb-5 border-b border-slate-100">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">🎯 수험생 전용 오답 & 선지 노트</h1>
+            <p className="text-xs text-slate-500 mt-1">모르는 선지를 반복 회독하고 퀴즈로 완전 습득하세요.</p>
+          </div>
           <div className="flex gap-2">
             <button
               onClick={() => setMode('list')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                mode === 'list' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                mode === 'list'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               선지 관리 ({items.length})
             </button>
             <button
-              onClick={() => {
-                setMode('quiz');
-                setQuizIndex(0);
-                setShowAnswer(false);
-                setScore(0);
-              }}
+              onClick={startQuiz}
               disabled={items.length === 0}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                mode === 'quiz' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50'
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                mode === 'quiz'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 disabled:opacity-50'
               }`}
             >
-              퀴즈 풀기 🎯
+              퀴즈 풀기 ⚡
             </button>
           </div>
         </div>
 
-        {/* 1. 선지 등록 및 목록 화면 */}
+        {/* ---------------- 목록 및 선지 등록 모드 ---------------- */}
         {mode === 'list' && (
-          <div>
-            <form onSubmit={handleAddItem} className="space-y-4 mb-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-700">새로운 모르는 선지 추가</h2>
-              
-              <div className="flex gap-2">
+          <div className="space-y-6">
+            
+            {/* 선지 추가 폼 */}
+            <form onSubmit={handleAddItem} className="bg-slate-50 p-4 sm:p-5 rounded-xl border border-slate-200/60 space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-slate-700 tracking-wide uppercase">➕ 새 선지 등록</h2>
+                <span className="text-[11px] text-slate-400">* 필수 입력 항목</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <select
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                  className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 >
-                  <option value="국어">국어</option>
-                  <option value="수학">수학</option>
-                  <option value="영어">영어</option>
-                  <option value="회계학/세법">회계학/세법</option>
-                  <option value="경영학/경제학">경영학/경제학</option>
-                  <option value="기타">기타</option>
+                  {SUBJECT_OPTIONS.filter((s) => s !== '전체').map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
                 </select>
 
                 <input
                   type="text"
-                  placeholder="모랐던 선지 내용이나 문제 요약 입력"
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                  placeholder="단원/주제 (예: 자본잠식, 대손충당금)"
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
+
+                <select
+                  value={difficulty}
+                  onChange={(e) => setDifficulty(e.target.value as '상' | '중' | '하')}
+                  className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                >
+                  <option value="상">난이도: 상 🔥</option>
+                  <option value="중">난이도: 중 ⚖️</option>
+                  <option value="하">난이도: 하 🌱</option>
+                </select>
               </div>
 
               <textarea
-                placeholder="해설 또는 내가 놓친 포인트 (선택사항)"
+                placeholder="모르는 선지 내용이나 지문을 입력하세요 (예: 금융자산 중 채무상품은 계약상 현금흐름 특성과 사업모형에 따라 분류한다.)"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                required
+                className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none h-20"
+              />
+
+              <textarea
+                placeholder="💡 해설 및 내가 함정에 빠졌던 이유 (선택)"
                 value={explanation}
                 onChange={(e) => setExplanation(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 resize-none h-20"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none h-16"
               />
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                className="w-full py-2.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
               >
-                오답노트에 추가하기
+                오답노트에 즉시 추가
               </button>
             </form>
 
-            {/* 저장된 리스트 */}
+            {/* 필터 및 검색 바 */}
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <select
+                value={filterSubject}
+                onChange={(e) => setFilterSubject(e.target.value)}
+                className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-none"
+              >
+                {SUBJECT_OPTIONS.map((s) => (
+                  <option key={s} value={s}>과목: {s}</option>
+                ))}
+              </select>
+
+              <input
+                type="text"
+                placeholder="선지 내용, 단원, 해설 검색..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none"
+              />
+            </div>
+
+            {/* 저장된 선지 목록 */}
             <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-gray-700">기록된 선지 목록</h2>
-              {items.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-8">등록된 선지가 없습니다. 모르는 선지를 추가해보세요!</p>
+              <div className="flex justify-between items-center text-xs font-semibold text-slate-500">
+                <span>등록된 선지 ({filteredItems.length}개)</span>
+                {filteredItems.length > 0 && (
+                  <span className="text-[11px] text-blue-600 cursor-pointer hover:underline" onClick={startQuiz}>
+                    이 목록으로 퀴즈 시작 ➡️
+                  </span>
+                )}
+              </div>
+
+              {filteredItems.length === 0 ? (
+                <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                  <p className="text-xs text-slate-400">등록된 선지가 없습니다. 상단에서 추가해보세요!</p>
+                </div>
               ) : (
-                items.map((item) => (
-                  <div key={item.id} className="p-4 rounded-xl border border-gray-100 bg-white shadow-sm flex justify-between items-start gap-3">
-                    <div className="space-y-1">
-                      <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-blue-50 text-blue-600 rounded">
-                        {item.subject}
+                filteredItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-4 bg-white rounded-xl border border-slate-200/80 shadow-xs space-y-2 hover:border-slate-300 transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="px-2 py-0.5 text-[11px] font-semibold bg-blue-50 text-blue-600 rounded">
+                          {item.subject}
+                        </span>
+                        {item.topic && (
+                          <span className="px-2 py-0.5 text-[11px] bg-slate-100 text-slate-600 rounded">
+                            {item.topic}
+                          </span>
+                        )}
+                        <span className={`px-1.5 py-0.5 text-[10px] rounded ${
+                          item.difficulty === '상' ? 'bg-red-50 text-red-600' :
+                          item.difficulty === '중' ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-600'
+                        }`}>
+                          {item.difficulty}
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-medium text-slate-400">
+                        {item.reviewCount}회 독습
                       </span>
-                      <p className="text-sm font-medium text-gray-900">{item.content}</p>
-                      {item.explanation && (
-                        <p className="text-xs text-gray-500 bg-gray-50 p-2 rounded mt-1">
-                          💡 {item.explanation}
-                        </p>
-                      )}
                     </div>
-                    <button
-                      onClick={() => handleDelete(item.id)}
-                      className="text-gray-400 hover:text-red-500 text-sm px-2 py-1"
-                    >
-                      삭제
-                    </button>
+
+                    <p className="text-xs sm:text-sm font-medium text-slate-900 leading-relaxed">
+                      {item.content}
+                    </p>
+
+                    {item.explanation && (
+                      <div className="p-2.5 bg-slate-50 rounded-lg text-xs text-slate-600 leading-normal border border-slate-100">
+                        💡 {item.explanation}
+                      </div>
+                    )}
+
+                    <div className="flex justify-between items-center pt-1 text-[11px] text-slate-400">
+                      <span>등록: {item.createdAt}</span>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => handleIncrementReview(item.id)}
+                          className="text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          +1회독 완료
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          className="text-rose-400 hover:text-rose-600"
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ))
               )}
             </div>
+
+            {/* 백업 및 복구 버튼 */}
+            <div className="pt-6 border-t border-slate-100 flex justify-between items-center text-xs text-slate-400">
+              <span>💾 데이터 백업/복구:</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={exportData}
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded"
+                >
+                  JSON 백업 다운로드
+                </button>
+                <label className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded cursor-pointer">
+                  백업 파일 복구
+                  <input type="file" accept=".json" onChange={importData} className="hidden" />
+                </label>
+              </div>
+            </div>
+
           </div>
         )}
 
-        {/* 2. 퀴즈 풀기 화면 */}
-        {mode === 'quiz' && items.length > 0 && (
+        {/* ---------------- 퀴즈 모드 ---------------- */}
+        {mode === 'quiz' && quizList.length > 0 && (
           <div className="space-y-6">
-            <div className="flex justify-between text-xs text-gray-500 font-medium">
-              <span>문제 {quizIndex + 1} / {items.length}</span>
-              <span>진행률 {Math.round(((quizIndex + 1) / items.length) * 100)}%</span>
+            {/* 퀴즈 진행 상태 */}
+            <div className="flex justify-between items-center text-xs text-slate-500 font-medium">
+              <span>문제 {quizIndex + 1} / {quizList.length}</span>
+              <div className="w-1/3 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                <div
+                  className="bg-blue-600 h-full transition-all duration-300"
+                  style={{ width: `${((quizIndex + 1) / quizList.length) * 100}%` }}
+                />
+              </div>
             </div>
 
-            <div className="p-6 bg-blue-50/50 rounded-xl border border-blue-100 text-center space-y-4">
-              <span className="inline-block px-2.5 py-1 text-xs font-semibold bg-blue-100 text-blue-700 rounded-full">
-                {items[quizIndex].subject}
-              </span>
-              <h3 className="text-base font-bold text-gray-900">
-                {items[quizIndex].content}
+            {/* 카드 질문 영역 */}
+            <div className="p-6 sm:p-8 bg-gradient-to-b from-blue-50/50 to-indigo-50/30 rounded-2xl border border-blue-100 text-center space-y-4">
+              <div className="flex justify-center gap-2">
+                <span className="px-2.5 py-0.5 text-xs font-semibold bg-blue-100 text-blue-700 rounded-full">
+                  {quizList[quizIndex].subject}
+                </span>
+                {quizList[quizIndex].topic && (
+                  <span className="px-2.5 py-0.5 text-xs font-medium bg-white border border-blue-200 text-slate-600 rounded-full">
+                    {quizList[quizIndex].topic}
+                  </span>
+                )}
+              </div>
+
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug pt-2">
+                "{quizList[quizIndex].content}"
               </h3>
 
               {showAnswer ? (
-                <div className="pt-4 border-t border-blue-100 text-left space-y-2 animate-fadeIn">
-                  <p className="text-xs font-semibold text-gray-500">핵심 해설 / 포인트:</p>
-                  <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-100">
-                    {items[quizIndex].explanation || '등록된 해설이 없습니다.'}
+                <div className="pt-4 border-t border-blue-200/60 text-left space-y-2 animate-fadeIn">
+                  <p className="text-xs font-bold text-slate-500">📌 해설 및 오답 노트:</p>
+                  <p className="text-xs sm:text-sm text-slate-800 bg-white p-3.5 rounded-xl border border-blue-100 leading-relaxed shadow-xs">
+                    {quizList[quizIndex].explanation || '등록된 해설이 없습니다.'}
                   </p>
                 </div>
               ) : (
                 <button
                   onClick={() => setShowAnswer(true)}
-                  className="px-4 py-2 bg-white border border-blue-200 text-blue-600 text-sm font-medium rounded-lg hover:bg-blue-50 transition-colors"
+                  className="mt-4 px-5 py-2.5 bg-white border border-blue-200 text-blue-600 text-xs sm:text-sm font-semibold rounded-xl hover:bg-blue-50 transition-colors shadow-xs"
                 >
-                  정답 및 해설 확인하기
+                  정답 및 해설 확인하기 👁️
                 </button>
               )}
             </div>
 
+            {/* 하단 컨트롤 버튼 */}
             {showAnswer && (
               <div className="flex gap-2">
                 <button
                   onClick={() => {
-                    if (quizIndex < items.length - 1) {
+                    handleIncrementReview(quizList[quizIndex].id);
+                    if (quizIndex < quizList.length - 1) {
                       setQuizIndex(quizIndex + 1);
                       setShowAnswer(false);
                     } else {
-                      alert('모든 퀴즈를 완료했습니다! 수고하셨습니다 👏');
+                      alert('🎉 오늘 분량의 퀴즈를 모두 완료했습니다! 수고하셨습니다.');
                       setMode('list');
                     }
                   }}
-                  className="flex-1 py-3 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors"
+                  className="flex-1 py-3 bg-blue-600 text-white text-xs sm:text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
                 >
-                  다음 문제로 ➡️
+                  +1회독 완료 및 다음 문제 ➡️
                 </button>
               </div>
             )}
