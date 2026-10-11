@@ -301,4 +301,126 @@
         </div>
 
         <!-- 1. 선지 및 카테고리 관리 섹션 -->
-        <div class="section active card" id
+        <div class="section active card" id="section-input">
+            <!-- 카테고리 추가 -->
+            <div style="margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px dashed var(--card-border);">
+                <h2 style="font-size:15px; margin-bottom:12px;">📁 카테고리 관리</h2>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="new-category-input" placeholder="새 카테고리명 (예: 세법, 재무회계)">
+                    <button type="button" class="btn btn-primary" style="white-space:nowrap;" onclick="addCategory()">카테고리 생성</button>
+                </div>
+                <div class="category-tags" id="category-tags-list"></div>
+            </div>
+
+            <!-- 선지 추가 -->
+            <h2 style="font-size:15px; margin-bottom:16px;">✏️ 선지 추가하기</h2>
+            <div class="input-group">
+                <label for="input-category">카테고리 선택</label>
+                <select id="input-category"></select>
+            </div>
+            <div class="input-group">
+                <label for="input-text">선지 내용 (변형 없이 그대로 입력)</label>
+                <textarea id="input-text" placeholder="예: 자본잠식 상태인 법인의 채무면제이익은 이월결손금 보전에 충당할 수 있다."></textarea>
+            </div>
+            <div class="input-group">
+                <label for="input-answer">정답 여부</label>
+                <select id="input-answer">
+                    <option value="O">O (참 / 올바른 지문)</option>
+                    <option value="X">X (거짓 / 틀린 지문)</option>
+                </select>
+            </div>
+            <button type="button" class="btn btn-primary" style="width:100%; padding:14px;" onclick="addStatement()">선지 추가하기</button>
+
+            <div style="margin-top:30px;">
+                <h3 style="font-size:14px; color:var(--text-sub); margin-bottom:10px;">등록된 선지 목록</h3>
+                <div class="item-list" id="statement-list"></div>
+            </div>
+        </div>
+
+        <!-- 2. O/X 풀기 섹션 -->
+        <div class="section card" id="section-quiz">
+            <div class="input-group" style="margin-bottom: 20px;">
+                <label for="quiz-category-select">풀어볼 카테고리 선택</label>
+                <select id="quiz-category-select" onchange="initQuiz()">
+                    <option value="ALL">전체 카테고리 문제 풀기</option>
+                </select>
+            </div>
+
+            <div id="quiz-active-area">
+                <div class="quiz-progress" id="quiz-progress">문제 1 / 5</div>
+                <div class="quiz-statement" id="quiz-statement">등록된 선지가 없습니다.</div>
+                <div class="quiz-buttons" id="quiz-action-btns">
+                    <button type="button" class="ox-btn btn-o" onclick="answerQuiz('O')">O</button>
+                    <button type="button" class="ox-btn btn-x" onclick="answerQuiz('X')">X</button>
+                </div>
+                <div class="quiz-result-msg" id="quiz-result-msg"></div>
+            </div>
+            
+            <div id="quiz-end-area" style="display:none; text-align:center; padding: 30px 0;">
+                <h2 style="font-size:22px; margin-bottom:10px;">🎉 선택한 카테고리의 모든 문제를 풀었습니다!</h2>
+                <p id="quiz-score-summary" style="color:var(--text-sub); margin-bottom:20px;"></p>
+                <button type="button" class="btn btn-primary" onclick="initQuiz()">다시 풀기</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let categories = [];
+        let statements = [];
+        
+        let currentQuizIndex = 0;
+        let correctCount = 0;
+        let shuffledList = [];
+        let isAnswering = false;
+
+        function loadStorageData() {
+            try {
+                categories = JSON.parse(localStorage.getItem('cpa_categories')) || ["기본"];
+            } catch (e) {
+                categories = ["기본"];
+            }
+
+            try {
+                statements = JSON.parse(localStorage.getItem('cpa_ox_items')) || [];
+            } catch (e) {
+                statements = [];
+            }
+        }
+
+        function saveStorageData() {
+            localStorage.setItem('cpa_categories', JSON.stringify(categories));
+            localStorage.setItem('cpa_ox_items', JSON.stringify(statements));
+        }
+
+        function addCategory() {
+            const input = document.getElementById('new-category-input');
+            const catName = input.value.trim();
+            if (!catName) return alert('카테고리 이름을 입력해주세요.');
+            if (categories.includes(catName)) return alert('이미 존재하는 카테고리입니다.');
+
+            categories.push(catName);
+            saveStorageData();
+            input.value = '';
+            renderCategories();
+        }
+
+        function deleteCategory(catName) {
+            if (categories.length <= 1) return alert('최소 하나의 카테고리는 존재해야 합니다.');
+            if (!confirm(`'${catName}' 카테고리를 삭제하시겠습니까? (속한 선지는 '기본'으로 변경됩니다)`)) return;
+
+            categories = categories.filter(c => c !== catName);
+            statements.forEach(item => {
+                if (item.category === catName) item.category = '기본';
+            });
+
+            saveStorageData();
+            renderCategories();
+            renderList();
+        }
+
+        function renderCategories() {
+            const tagsEl = document.getElementById('category-tags-list');
+            tagsEl.innerHTML = categories.map(c => `
+                <span class="tag">
+                    ${c}
+                    <span class="del
